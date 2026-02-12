@@ -1,0 +1,164 @@
+import express from "express";
+import axios from "axios";
+import bodyParser from "body-parser";
+import { google } from "googleapis";
+
+const app = express();
+app.use(bodyParser.json());
+
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+
+const routes = ["701","702","703","704","705","706"];
+
+const sessions = {};
+
+// Google Auth
+const auth = new google.auth.GoogleAuth({
+  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
+  scopes: ["https://www.googleapis.com/auth/calendar"],
+});
+const calendar = google.calendar({ version: "v3", auth });
+
+// Webhook verification
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode && token === VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+// Receive messages
+app.post("/webhook", async (req, res) => {
+  const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  if (!message) return res.sendStatus(200);
+
+  const from = message.from;
+  const text = message.text?.body?.trim();
+
+  if (!sessions[from]) sessions[from] = { step: "start" };
+
+  try {
+
+    if (text.toUpperCase() === "BOOK") {
+      const nextDates = getNextAvailableDates();
+      sessions[from] = { step: "awaiting_date", dates: nextDates };
+
+      let msg = "Available Dates:\n";
+      nextDates.forEach((d, i) => {
+        msg += `${i+1}️⃣ ${d}\n`;
+      });
+      msg += "\nReply with date number.";
+
+      await sendMessage(from, msg);
+    }
+
+    else if (sessions[from].step === "awaiting_date") {
+      const index = parseInt(text) - 1;
+      const selectedDate = sessions[from].dates[index];
+
+      if (!selectedDate) {
+        await sendMessage(from, "Invalid selection.");
+        return res.sendStatus(200);
+      }
+
+      sessions[from] = {
+        step: "awaiting_route",
+        selectedDate
+      };
+
+      await sendMessage(from,
+        `Selected ${selectedDate}\n\nAvailable Routes:\n${routes.join("\n")}\n\nReply with route number.`
+      );
+    }
+
+    else if (sessions[from].step === "awaiting_route") {
+      if (!routes.includes(text)) {
+        await sendMessage(from, "Invalid route number.");
+        return res.sendStatus(200);
+      }
+
+      const selectedDate = sessions[from].selectedDate;
+
+      const start = new Date(`${selectedDate}T01:00:00`);
+      const end = new Date(`${selectedDate}T08:00:00`);
+
+      const events = await calendar.events.list({
+        calendarId: "primary",
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+      });
+
+      if (events.data.items.length > 0) {
+        await sendMessage(from, "❌ Date already booked.");
+      } else {
+        await calendar.events.insert({
+          calendarId: "primary",
+          requestBody: {
+            summary: `Route ${text} – Cover Driver`,
+            start: { dateTime: start.toISOString() },
+            end: { dateTime: end.toISOString() },
+          },
+        });
+
+        await sendMessage(from,
+          `✅ Booking Confirmed\nDate: ${selectedDate}\nRoute: ${text}`
+        );
+
+        await sendMessage("YOUR_NUMBER_HERE",
+          `📢 New Booking\nDate: ${selectedDate}\nRoute: ${text}`
+        );
+      }
+
+      delete sessions[from];
+    }
+
+  } catch (err) {
+    console.error(err);
+  }
+
+  res.sendStatus(200);
+});
+
+function getNextAvailableDates() {
+  const today = new Date();
+  const allowedDays = [1,2,4,6]; // Example: Mon Tue Thu Sat
+  const results = [];
+
+  for (let i = 0; results.length < 4; i++) {
+    const d = new Date();
+    d.setDate(today.getDate() + i);
+    if (allowedDays.includes(d.getDay())) {
+      results.push(d.toISOString().split("T")[0]);
+    }
+  }
+
+  return results;
+}
+
+async function sendMessage(to, message) {
+  await axios.post(
+    `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to,
+      text: { body: message }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+
+app.listen(process.env.PORT || 3000, () =>
+  console.log("Server running"));
+
