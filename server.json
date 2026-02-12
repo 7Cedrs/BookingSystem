@@ -16,7 +16,7 @@ const sessions = {};
 
 // Google Auth
 const auth = new google.auth.GoogleAuth({
-  keyFile: "service-account.json",
+  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ["https://www.googleapis.com/auth/calendar"],
 });
 const calendar = google.calendar({ version: "v3", auth });
@@ -160,3 +160,4 @@ async function sendMessage(to, message) {
 }
 
 app.listen(3000, () => console.log("Server running"));
+
