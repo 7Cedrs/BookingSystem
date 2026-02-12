@@ -14,6 +14,52 @@ const routes = ["701","702","703","704","705","706"];
 
 const sessions = {};
 
+app.get("/privacy-policy", (req, res) => {
+  res.send(`
+    <h1>Privacy Policy</h1>
+    <p>Effective Date: ${new Date().toISOString().split("T")[0]}</p>
+
+    <p>This application provides booking services via WhatsApp and integrates with Google Calendar.</p>
+
+    <h2>Information We Collect</h2>
+    <ul>
+      <li>WhatsApp phone number</li>
+      <li>Messages sent to the booking system</li>
+      <li>Booking date and route selection</li>
+    </ul>
+
+    <h2>How We Use Information</h2>
+    <p>Information is used solely to create and manage calendar bookings.</p>
+
+    <h2>Data Storage</h2>
+    <p>No personal data is sold or shared with third parties. Booking data is stored only within Google Calendar.</p>
+
+    <h2>Contact</h2>
+    <p>For questions, contact: your@email.com</p>
+  `);
+});
+
+app.get("/terms-of-service", (req, res) => {
+  res.send(`
+    <h1>Terms of Service</h1>
+    <p>Effective Date: ${new Date().toISOString().split("T")[0]}</p>
+
+    <p>By using this booking service, you agree to the following terms:</p>
+
+    <ul>
+      <li>The system is provided "as is" without guarantees.</li>
+      <li>Bookings are subject to availability.</li>
+      <li>Misuse of the system may result in access restriction.</li>
+    </ul>
+
+    <h2>Limitation of Liability</h2>
+    <p>The service provider is not liable for missed bookings or scheduling conflicts.</p>
+
+    <h2>Changes</h2>
+    <p>We reserve the right to modify these terms at any time.</p>
+  `);
+});
+
 // Google Auth
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
@@ -161,4 +207,5 @@ async function sendMessage(to, message) {
 
 app.listen(process.env.PORT || 3000, () =>
   console.log("Server running"));
+
 
