@@ -15,6 +15,11 @@ const routes = ["701","702","703","704","705","706"];
 const sessions = {};
 
 
+
+app.use(express.json());
+
+
+
 app.use((req, res, next) => {
   console.log("INCOMING REQUEST:", req.method, req.url);
   next();
@@ -218,6 +223,7 @@ async function sendMessage(to, message) {
 
 app.listen(process.env.PORT || 3000, () =>
   console.log("Server running"));
+
 
 
 
