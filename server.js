@@ -73,10 +73,13 @@ app.get("/webhook", (req, res) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  if (mode && token === VERIFY_TOKEN) {
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
+  if (mode && token) {
+    if (mode === "subscribe" && token === process.env.VERIFY_TOKEN) {
+      console.log("Webhook verified!");
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
   }
 });
 
@@ -207,5 +210,6 @@ async function sendMessage(to, message) {
 
 app.listen(process.env.PORT || 3000, () =>
   console.log("Server running"));
+
 
 
